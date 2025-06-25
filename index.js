@@ -39,7 +39,6 @@ async function serverStart() {
     const bookingCollection = database.collection("Bookings");
     const usersCollection = database.collection("Users");
     
-    const ordersCollection = database.collection("Orders");
        const servicesCollection = database.collection("Service");
     
 
@@ -49,7 +48,7 @@ async function serverStart() {
         const mobile = await mobileCollection.find(query).toArray();
         res.send(mobile);
     })
-    app.get("/laptop", async (req, res) => {
+    app.get("/laptops", async (req, res) => {
         const query = {};
         const laptop = await laptopCollection.find(query).toArray();
         res.send(laptop);
@@ -59,20 +58,31 @@ async function serverStart() {
         const tv = await tvCollection.find(query).toArray();
         res.send(tv);
     })
-    app.get("/all-category", async (req, res) => {
+    app.get("/categories", async (req, res) => {
         const query = {};
         const allCategory = await allCategoryCollection.find(query).toArray();
         res.send(allCategory);
     })
 
-    // get all bookings for a specific user by email
 
+    // get all bookings for a specific user by email
     app.get("/bookings", async (req, res) => {
       const email = req.query.email;
       const query = { email: email };
       const bookings = await bookingCollection.find(query).toArray();
       res.send(bookings);
     });
+
+     // add payment 
+
+
+    app.get("/bookings/:id", async (req, res) =>{
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)};
+      const product = await bookingCollection.findOne(query);
+      res.send(product);
+    })
+
 
      app.get("/users", async (req, res) => {
       const query = {};
@@ -141,6 +151,24 @@ async function serverStart() {
       const result = await servicesCollection.insertOne(service);
       res.send(result);
     });
+
+
+   
+
+
+
+    // app.get("/price",async(req,res)=>{
+    //   const filter = {}
+    //   const option = {upsert:true}
+    //   const updatedDoc = {
+    //     $set:{
+    //       price: 100
+    //     }
+    //   }
+    //   const result = await bookingCollection.updateMany(filter,updatedDoc,option)
+    //   res.send(result)
+    // })
+
 
   } finally {
    
