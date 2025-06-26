@@ -1,13 +1,13 @@
-const express = require('express')
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-const cors = require('cors')
+const express = require("express");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+
+const cors = require("cors");
 const fileUpload = require("express-fileupload");
-require('dotenv').config();
-
-
+require("dotenv").config();
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
-const port = 7000; 
+const port = 7000;
 
 // middleware
 app.use(cors());
@@ -24,11 +24,11 @@ const client = new MongoClient(uri, {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  }
+  },
 });
 
 async function serverStart() {
-  try { 
+  try {
     await client.connect();
 
     const database = client.db("Mobile-Store");
@@ -38,32 +38,30 @@ async function serverStart() {
     const allCategoryCollection = database.collection("All-Category");
     const bookingCollection = database.collection("Bookings");
     const usersCollection = database.collection("Users");
-    
-       const servicesCollection = database.collection("Service");
-    
+    const paymentCollection = database.collection("Payments");
 
+    const servicesCollection = database.collection("Service");
 
     app.get("/mobile", async (req, res) => {
-        const query = {};
-        const mobile = await mobileCollection.find(query).toArray();
-        res.send(mobile);
-    })
+      const query = {};
+      const mobile = await mobileCollection.find(query).toArray();
+      res.send(mobile);
+    });
     app.get("/laptops", async (req, res) => {
-        const query = {};
-        const laptop = await laptopCollection.find(query).toArray();
-        res.send(laptop);
-    })
+      const query = {};
+      const laptop = await laptopCollection.find(query).toArray();
+      res.send(laptop);
+    });
     app.get("/tv", async (req, res) => {
-        const query = {};
-        const tv = await tvCollection.find(query).toArray();
-        res.send(tv);
-    })
+      const query = {};
+      const tv = await tvCollection.find(query).toArray();
+      res.send(tv);
+    });
     app.get("/categories", async (req, res) => {
-        const query = {};
-        const allCategory = await allCategoryCollection.find(query).toArray();
-        res.send(allCategory);
-    })
-
+      const query = {};
+      const allCategory = await allCategoryCollection.find(query).toArray();
+      res.send(allCategory);
+    });
 
     // get all bookings for a specific user by email
     app.get("/bookings", async (req, res) => {
@@ -73,18 +71,74 @@ async function serverStart() {
       res.send(bookings);
     });
 
-     // add payment 
+    // Post all booking 
+    app.post("/bookings", async (req, res) => {
+      const booking = req.body;
 
+      console.log(booking);
 
-    app.get("/bookings/:id", async (req, res) =>{
+      const query = {
+      
+        email: booking.email,
+        serviceName: booking.serviceName,
+      };
+
+      const alreadyBooked = await bookingCollection.find(query).toArray();
+      console.log(alreadyBooked);
+
+      if (alreadyBooked.length) {
+        const message = `You already have a booking on ${booking.appointmentDate}`;
+        return res.send({ acknowledge: false, message });
+      }
+
+      const result = await bookingCollection.insertOne(booking);
+      res.send(result);
+    });
+
+    // add payment
+    app.post("/create-payment-intent", async (req, res) => {
+      const booking = req.body;
+      const price = booking.price;
+      const amount = price * 100;
+      const paymentIntent = await stripe.paymentIntents.create({
+        currency: "usd",
+        amount: amount,
+        "payment_method_types": [
+          "card"
+
+        ],
+       
+      });
+      res.send({ 
+        clientSecret: paymentIntent.client_secret,
+       });
+    });
+
+    app.get("/bookings/:id", async (req, res) => {
       const id = req.params.id;
-      const query = {_id: new ObjectId(id)};
-      const product = await bookingCollection.findOne(query);
-      res.send(product);
+      const query = { _id: new ObjectId(id) };
+      const booking = await bookingCollection.findOne(query);
+      res.send(booking);
+    });
+
+    // post payment
+
+    app.post("/payments", async (req, res) => {
+      const payment = req.body;
+      const result = await paymentCollection.insertOne(payment);
+      const id = payment.bookingId;
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          paid: true,
+          transactionId: payment.transactionId,
+        },
+      };
+      const updatedResult = await bookingCollection.updateOne(filter, updatedDoc);
+      res.send(result);
     })
 
-
-     app.get("/users", async (req, res) => {
+    app.get("/users", async (req, res) => {
       const query = {};
       const users = await usersCollection.find(query).toArray();
       res.send(users);
@@ -119,20 +173,19 @@ async function serverStart() {
 
     // check admin or not
 
-    app.get("/users/admin/:email",async(req,res)=>{
+    app.get("/users/admin/:email", async (req, res) => {
       const email = req.params.email;
-      const query = {email:email};
+      const query = { email: email };
       const user = await usersCollection.findOne(query);
-      res.send({isAdmin:user?.role === "admin"})
-      
-    })
-     // add services
+      res.send({ isAdmin: user?.role === "admin" });
+    });
+    // add services
     //get all services
-    app.get("/all-service", async (req , res) =>{
+    app.get("/all-service", async (req, res) => {
       const query = {};
       const services = await servicesCollection.find(query).toArray();
       res.send(services);
-    })
+    });
 
     // post services
     app.post("/add-service", async (req, res) => {
@@ -152,40 +205,27 @@ async function serverStart() {
       res.send(result);
     });
 
-
-   
-
-
-
-    // app.get("/price",async(req,res)=>{
-    //   const filter = {}
-    //   const option = {upsert:true}
-    //   const updatedDoc = {
-    //     $set:{
-    //       price: 100
-    //     }
-    //   }
-    //   const result = await bookingCollection.updateMany(filter,updatedDoc,option)
-    //   res.send(result)
-    // })
-
-
+    app.get("/price",async(req,res)=>{
+      const filter = {}
+      const option = {upsert:true}
+      const updatedDoc = {
+        $set:{
+          price: 100
+        }
+      }
+      const result = await bookingCollection.updateMany(filter,updatedDoc,option)
+      res.send(result)
+    })
   } finally {
-   
-//     await client.close();
+    //     await client.close();
   }
 }
 serverStart().catch(console.dir);
 
-
-
-
-
-
-app.get('/', (req, res) => {
-  res.send('Hello Resell Mobile Store!👏👏👏')
-})
+app.get("/", (req, res) => {
+  res.send("Hello Resell Mobile Store!👏👏👏");
+});
 
 app.listen(port, () => {
-  console.log(`Our Mobile store app listening on port ${port}`)
-})
+  console.log(`Our Mobile store app listening on port ${port}`);
+});

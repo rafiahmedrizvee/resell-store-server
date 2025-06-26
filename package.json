@@ -7,8 +7,6 @@
     "dev": "nodemon index.js",
     "start": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
-   
-
   },
   "keywords": [],
   "author": "",
@@ -19,6 +17,7 @@
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "express-fileupload": "^1.5.1",
-    "mongodb": "^6.17.0"
+    "mongodb": "^6.17.0",
+    "stripe": "^18.2.1"
   }
 }
